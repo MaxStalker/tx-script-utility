@@ -4,8 +4,13 @@ import { MonacoServices } from "monaco-languageclient/lib/monaco-services";
 
 import { CadenceLanguageServer } from "./language-server";
 import { createCadenceLanguageClient } from "./language-client";
+import * as fcl from "@onflow/fcl";
+import {
+  executeScript,
+} from "flow-cadut";
 
 let monacoServicesInstalled = false;
+var codes = {}
 
 async function startLanguageServer(callbacks, getCode, options) {
   const { setLanguageServer, setCallbacks } = options;
@@ -16,9 +21,9 @@ async function startLanguageServer(callbacks, getCode, options) {
       // if it was not properly started or in progress it will be "null"
       if (callbacks.toServer !== null) {
         clearInterval(checkInterval);
+        setLanguageServer(server);
         callbacks.getAddressCode = getCode;
         setCallbacks(callbacks);
-        setLanguageServer(server);
         console.log("%c LS: Is Up!", "color: #00FF00");
       }
     }, 100);
@@ -63,18 +68,25 @@ export default function useLanguageServer() {
   const [languageClient, setLanguageClient] = useState(null);
   const [callbacks, setCallbacks] = useState(initialCallbacks);
 
-  const getCode = (address) => {
-    // TODO: Fetch code from address.
-    /*
-      This is probably can't be implemented right now as server expects only address,
-      but not the name of the contract.
-     */
-    return "";
-  };
+  const getCodeAsync = async (address,callbacks) => {
+    var [account, contract] = address.split(".")
+    var response =  await fcl.send([fcl.getAccount(`0x${account}`)])
+    var contracts = response["account"]["contracts"]
+    
+    for(var key in contracts) {
+      codes[`${account}.${key}`] = contracts[key]
+    } 
+
+    callbacks.toServer(null, window.lastChangeMessage);
+  }
+
+  const getCode = (address) =>{
+      return codes[address]? codes[address] : getCodeAsync(address,callbacks)
+  } 
+    
 
   const restartServer = () => {
     console.log("Restarting server...");
-
     startLanguageServer(callbacks, getCode, {
       setLanguageServer,
       setCallbacks,
@@ -99,7 +111,7 @@ export default function useLanguageServer() {
     if (!languageClient && window) {
       launchLanguageClient(callbacks, languageServer, setLanguageClient).then();
     }
-  }, [languageServer]);
+  },[languageServer]);
 
   return {
     languageClient,

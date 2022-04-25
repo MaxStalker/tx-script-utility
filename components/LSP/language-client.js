@@ -7,6 +7,7 @@ import {
   MonacoLanguageClient,
 } from "monaco-languageclient";
 
+
 export function createCadenceLanguageClient(callbacks) {
   const logger = {
     error(message) {
@@ -31,8 +32,15 @@ export function createCadenceLanguageClient(callbacks) {
       return Disposable.create(() => {});
     },
     async write(msg) {
+      if (msg["method"]=="textDocument/didChange")
+        window.lastChangeMessage = msg
       callbacks.toServer(null, msg);
     },
+    async update(msg) {
+      
+      await callbacks.toServer(null, oldmsg);
+    },
+
     end() {},
     dispose() {
       callbacks.onClientClose();
@@ -64,7 +72,7 @@ export function createCadenceLanguageClient(callbacks) {
 
   const messageConnection = createMessageConnection(reader, writer, logger);
 
-  return new MonacoLanguageClient({
+  var res =  new MonacoLanguageClient({
     name: "Cadence Language Client",
     clientOptions: {
       documentSelector: [CADENCE_LANGUAGE_ID],
@@ -82,4 +90,6 @@ export function createCadenceLanguageClient(callbacks) {
       },
     },
   });
+
+  return res
 }
